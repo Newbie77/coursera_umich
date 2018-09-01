@@ -79,7 +79,7 @@ def sum_wint_diff(df):
     # only include countries with at lesat 1 gold in both summer and winter
     df_gold = df[(df.Gold_s >= 1 ) & (df.Gold_w >= 1)]
     
-    # new column = summer gold - winter gold / total god
+    # new column = summer gold - winter gold / total gold
     # indices that don't exist in df_gold will be NaN for this new column 
     df['sum_wint_diff'] = (df_gold.Gold_s - df_gold.Gold_w) / df_gold.Gold_t
     
