@@ -35,7 +35,7 @@ def max_counties(df):
     # count number of uniques within the index and assign to a variable
     df['numcounty'] = df.groupby(df.index).COUNTY.nunique()
         
-    # get the state wtih max
+    # get the state with max
     print(df[df['numcounty'] == df['numcounty'].max()].index)
     
     # OR
@@ -75,13 +75,25 @@ def most_pop(df):
     
 def largest_ch(df):    
     
-    # for each county, find the max and min value in POPESTIMATE2010 to 2015
-    df['max'] = df.loc[:,['POPESTIMATE2010', 'POPESTIMATE2011','POPESTIMATE2012', 
-      'POPESTIMATE2013', 'POPESTIMATE2014', 'POPESTIMATE2015']].max(axis = 1)
-    df['min'] = df.loc[:,['POPESTIMATE2010', 'POPESTIMATE2011','POPESTIMATE2012', 
-      'POPESTIMATE2013', 'POPESTIMATE2014', 'POPESTIMATE2015']].min(axis = 1)    
+    # use function and apply or do directly as commented out below
+    def min_max(row):
+        row['max'] = row[['POPESTIMATE2010', 'POPESTIMATE2011','POPESTIMATE2012', 
+             'POPESTIMATE2013', 'POPESTIMATE2014', 'POPESTIMATE2015']].max()
+        row['min'] = row[['POPESTIMATE2010', 'POPESTIMATE2011','POPESTIMATE2012', 
+             'POPESTIMATE2013', 'POPESTIMATE2014', 'POPESTIMATE2015']].min()
+        return row # make sure to return the row. 
     
-    # different
+    # apply function on all rows of dataset 
+    df = df.apply(min_max, axis = 1)
+    
+    # OR:  for each county, find the max and min value in POPESTIMATE2010 to 2015
+    #df['max'] = df.loc[:,['POPESTIMATE2010', 'POPESTIMATE2011','POPESTIMATE2012', 
+    #  'POPESTIMATE2013', 'POPESTIMATE2014', 'POPESTIMATE2015']].max(axis = 1)
+    #df['min'] = df.loc[:,['POPESTIMATE2010', 'POPESTIMATE2011','POPESTIMATE2012', 
+    #  'POPESTIMATE2013', 'POPESTIMATE2014', 'POPESTIMATE2015']].min(axis = 1)  
+    
+
+    # difference
     df['difference'] = df['max'] - df['min']
     
     # maximum difference
