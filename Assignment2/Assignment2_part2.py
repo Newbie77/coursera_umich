@@ -85,7 +85,7 @@ def largest_ch(df):
     
     # apply function on all rows of dataset 
     df = df.apply(min_max, axis = 1)
-    
+
     # OR:  for each county, find the max and min value in POPESTIMATE2010 to 2015
     #df['max'] = df.loc[:,['POPESTIMATE2010', 'POPESTIMATE2011','POPESTIMATE2012', 
     #  'POPESTIMATE2013', 'POPESTIMATE2014', 'POPESTIMATE2015']].max(axis = 1)
@@ -129,5 +129,33 @@ def main():
     df_subset = df_subset_create(census_df)
     
     print(df_subset)
+    
+    # for own practice: calculate average county population in a state with for loop and groupby (2 ways)
+    census_df['avg1'] = 0
+    for st in census_df.index.unique():
+        census_df.loc[st, 'avg1'] = (census_df[census_df.index == st].CENSUS2010POP.mean())
+    
+    census_df['avg2'] = census_df.groupby(census_df.index).CENSUS2010POP.mean()
+    # OR: census_df['avg2'] = census_df.groupby(census_df.index).agg({'CENSUS2010POP': np.average})
+    # OR: census_df['avg2'] = census_df.groupby(census_df.index).CENSUS2010POP.agg({'avg2': np.average})
+    # same effect becaus assigning to a column, but doing slightly different things (see Week3 Notes. Or try printing them)
+    
+    # groupby in a loop
+    census_df['avg3'] = 0
+    for group, frame in census_df.groupby(census_df.index):
+        census_df.loc[group, 'avg3'] = frame.CENSUS2010POP.mean()
+        
+    print(census_df.avg1, census_df.avg2, census_df.avg3, census_df.avg4)
+    
+    def fun(item):
+        if item[0] < 'M':
+            return 1
+        elif item[0] < 'Q':
+            return 2
+        else:
+            return 3 
+    for group, frame in census_df.groupby(fun):
+        print(group, frame.CENSUS2010POP)
+        
     
 main()
