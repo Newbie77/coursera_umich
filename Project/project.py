@@ -4,11 +4,17 @@ Created on Sun Sep  9 11:16:55 2018
 
 @author: Gimli
 """
-## hi
+## NOT WORKING
+# I think the housing DF is t
+# subtraction for change from recession start to bottom isn't working
+    # maybe rename all time columns to 2016Q1 or something???
+
+# once do this and finish t-test, recommit this folder to github and say reshaped HP wide and finished problem
 
 import pandas as pd
 import numpy as np
 from scipy.stats import ttest_ind
+import math 
 
 data_dir = r'C:\Users\Gimli\Documents\coursera\data'
 
@@ -46,12 +52,16 @@ def get_list_of_university_towns():
     df_univ.regions =  df_univ.regions.apply(lambda x: x.split('(')[0])
     df_univ.regions =  df_univ.regions.apply(lambda x: x.split('[')[0])
         
+    # create a dummy that is always 1 for yes university town
+    # when merge with HPs
+    df_univ['univ_town'] = 1
+        
     return df_univ
     
 # get time series of GDP
 def get_gdp():
     
-    # download CSV
+     # download CSV
     df_gdp = pd.read_csv(data_dir + r'\gdplev.csv', header = 4, index_col = 1)
     
     # keep total GDP only 
@@ -87,16 +97,22 @@ def get_gdp():
 
     # make GDP numeric
     df_gdp = pd.to_numeric(df_gdp)
-    
-    # no actual change here. but getting index into same format as HP data
-    #df_gdp = df_gdp.resample('Q').mean()
-    
-    
-    print(df_gdp.head())
 
-    return df_gdp    
+    return df_gdp       
 
-
+def dt_to_strqtr(dt):
+    year = dt.year
+    month = dt.month
+    qtr = math.ceil(month/3)
+    
+    return str(year) + 'Q' + str(qtr)
+    
+'''
+:returns
+    datetime of first quarter of recession
+    string in format yyyyQqq of first quarter of recession
+Need datetime to use in other GDP functions and string to use in housing dataset
+'''
 # return time value of recession start time: defined as two consecutive quarters of GDP decrease
 def get_recession_start(df_gdp):
     
@@ -114,7 +130,7 @@ def get_recession_start(df_gdp):
     
     # only one recession in this period: take the first instance where beg_rec == True
     # and return time period
-    return df_gdp.beg_rec.eq(True).idxmax()
+    return df_gdp.beg_rec.eq(True).idxmax(), dt_to_strqtr(df_gdp.beg_rec.eq(True).idxmax())
 
 # return time value of recession end time: defined as two consecutive quarters of GDP increase
 def get_recession_end(df_gdp,rec_start):
@@ -133,7 +149,7 @@ def get_recession_end(df_gdp,rec_start):
 
     # only one recession in this period: take the first instance where beg_rec == True
     # and return time period
-    return df_gdp.end_rec.eq(True).idxmax()
+    return df_gdp.end_rec.eq(True).idxmax(), dt_to_strqtr(df_gdp.end_rec.eq(True).idxmax())
 
 # return time value of lowest GDP value during recession
 def get_recession_bottom(df_gdp, rec_start, rec_end):
@@ -142,7 +158,8 @@ def get_recession_bottom(df_gdp, rec_start, rec_end):
     df_rec = df_gdp[(df_gdp.index >= rec_start) & (df_gdp.index <= rec_end)]
     
     # get minimum gdp value
-    return df_rec.idxmin()
+    return df_rec.idxmin(), dt_to_strqtr(df_rec.idxmin())
+
 
 # get housing data and convert to quarterly 
 def convert_housing_data_to_quarters():
@@ -159,60 +176,71 @@ def convert_housing_data_to_quarters():
     #for col in df_housing:
     #    if col[0] == '1':
     #        df_housing.drop(columns = [col], inplace = True)
-        
-    # reshape 
-    df_housing = df_housing.stack()
-    df_housing = pd.DataFrame(df_housing, index = df_housing.index) # make it a dataframe again 
-        
-    ### convert to quarterly data 
-    # make single index. couldn't make this work with 3 multi index
-    df_housing['state'] = df_housing.index.get_level_values(0)
-    df_housing['region'] = df_housing.index.get_level_values(1)
-    
-    df_housing.set_index(df_housing.index.get_level_values(2), inplace = True)
-
-    # make the time index datetime
-    df_housing.index = pd.to_datetime(df_housing.index)    
-    
-    ## limit to 2000q1 to 2016q3
-    df_housing = df_housing.loc['2000-01-01': '2016-09-01']
-    #[(df_housing.index.year >= 2000) & (df_housing.index < 2016-06-01)]
+     
+    # 2D list that groups the three months that contribute to each column
+    qs = [list(df_housing.columns)[x:x+3] for x in range(0, len(list(df_housing.columns)), 3)]
+      
+    # create list of column names we can loop through
+    col_names = []
+    for q in qs:
+        if q[0][6] == '1':
+            col_names.append(q[0][0:4] + 'Q1')
+        if q[0][6] == '4':
+            col_names.append(q[0][0:4] + 'Q2')        
+        if q[0][6] == '7':
+            col_names.append(q[0][0:4] + 'Q3')  
+        if q[0][5:7] == '10':
+            col_names.append(q[0][0:4] + 'Q4')  
             
-    # quarterly
-    df_housing = df_housing.groupby(['state', 'region']).resample('Q').mean()
+    # create new columns that average those three months and have new column names
+    for i in range(len(qs)):
+        df_housing[col_names[i]] = df_housing[qs[i]].mean(axis=1)
     
-    # take out of index again: easier 
+    # drop the old columns
+    old_cols = [c for c in df_housing.columns if 'Q' not in c ]
+    df_housing.drop(old_cols, axis = 1, inplace = True)
+    
+    # limit to 2000q1 to 2016q3
+    start_index = df_housing.columns.get_loc('2000Q1')
+    end_index = df_housing.columns.get_loc('2016Q3')
+    df_housing = df_housing.iloc[:,start_index:end_index+1]
+        
+    # move index state and region name to columns and reset index
     df_housing['state'] = df_housing.index.get_level_values(0)
-    df_housing['region'] = df_housing.index.get_level_values(1)   
-    df_housing.set_index(df_housing.index.get_level_values(2), inplace = True)
-
-    df_housing.columns = ['price', 'state', 'region']
-    
-    # make index string. easier for later. 
-    #df_housing.index = df_housing.index.strftime('%Y-%m')
-
-    
+    df_housing['regions'] = df_housing.index.get_level_values(1)
+    df_housing.reset_index(drop = True, inplace = True)
+          
     return df_housing
     
 # find change in HP from recession start to recession bottom
-def hp_ch_recession(df, start, bottom):
+def hp_gr_recession(df, start, bottom):
     
     # find price change from start of recession to bottom
-    print(df.iloc[start, 0])
-    #df['change'] = df.iloc[start, 0] - df.iloc[bottom, 0]
-    
-    print(df.head())
-    
+    df['gr'] = (df[start] - df[bottom]) / df[bottom]    
     
 # merge HP and university town data
-# inner merge
-# will be only recession time period because that is what HP data is limited to
+# left merge. Want to include non-university towns
 def merge_data(df_hp, df_univ):
     
-    merged_df = pd.merge(df_hp, df_univ, how = 'inner', left_on = ['state', 'region'], right_on = ['state', 'region'])
+    merged_df = pd.merge(df_hp, df_univ, how = 'left', left_on = ['state', 'regions'], right_on = ['state', 'regions'])
     
     return merged_df
+
+def t_test(df):
     
+    # seperate datasets for university and non-univeresity towns
+    df_u = df[df.univ_town == 1]
+    df_nu = df[df.univ_town == 0]
+    
+    # t-test
+    pvalue = list(ttest_ind(df_u.gr, df_nu.gr))[1]
+    different = True if pvalue < .01 else False
+    
+    # which has lower mean price ratio
+    better = 'university-town' if df_u.gr.mean() > df_nu.gr.mean() else 'non-university town'
+    
+    return (different, pvalue, better)
+
 def main():
     
     # get datasets
@@ -222,17 +250,25 @@ def main():
 
     # from GDP data, find start, end, and bottom of recession
     # each returns a datetime 
-    rec_start = get_recession_start(df_gdp)
-    rec_end = get_recession_end(df_gdp, rec_start)    
-    rec_bottom = get_recession_bottom(df_gdp, rec_start, rec_end)
-    print(rec_start, rec_end, rec_bottom)
-    
-    # calculate change in HP from recession start to recession bottom
-    hp_ch_recession(df_housing, rec_start, rec_bottom)
+    rec_start_dt, rec_start_str = get_recession_start(df_gdp)
+    rec_end_dt, rec_end_str = get_recession_end(df_gdp, rec_start_dt)    
+    rec_bottom_dt, rec_bottom_str = get_recession_bottom(df_gdp, rec_start_dt, rec_end_dt)
+    print(rec_start_str, rec_end_str, rec_bottom_str)
 
-    
-    # merge HP and university town data
-    # limited to recession like HP data is
+    # calculate change in HP from recession start to recession bottom
+    hp_gr_recession(df_housing, rec_start_str, rec_bottom_str)
+
+    # merge HP and university town data, left merge
+    df_merge = merge_data(df_housing, df_univ)
+    df_merge.univ_town.fillna(0, inplace = True) # make university town dummy. if didn't merge, value is 0
+
+    # drop NA from growth and reindex
+    df_merge.dropna(axis = 0, inplace = True)
+    df_merge.reset_index(drop = True, inplace = True)
+    #print(df_merge[df_merge.gr.isnull()])
+
+    # t-test
+    print(t_test(df_merge))
     
     
     
